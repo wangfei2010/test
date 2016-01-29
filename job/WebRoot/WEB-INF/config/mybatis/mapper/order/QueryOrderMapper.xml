@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="GBK" ?>
+<!DOCTYPE mapper
+PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+"http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+
+<!-- 不使用namespace的话sql搜索定位会比较方便 -->
+<mapper namespace="QueryOrder">
+	<select id="queryOrder" parameterType="Map" resultType="Object">
+		<![CDATA[
+		SELECT DISTINCT gm.username '昵称',CAST(gm.member_id AS CHAR) '会员ID',gm.total_consumption '总消费额',FROM_UNIXTIME(gm.reg_time,'%Y-%m-%d') AS '注册时间',
+		CASE (SELECT COUNT(*) FROM gt_send_orders gsss WHERE gsss.member_id=gs.member_id AND gsss.send_order_id<>gs.send_order_id AND gsss.status IN(1,2,3,4) ) 
+		WHEN 0 THEN '新用户' ELSE '老用户' END '用户来源',
+		CAST(gs.`order_sn` AS CHAR) AS '订单号',CASE o.`sub_status` WHEN 10 THEN '收款完毕' ELSE '待收款' END '主订单状态',CAST(gp.`pay_sn` AS CHAR) '支付号',
+		CAST(gs.`send_order_sn` AS CHAR) '子订单号',FROM_UNIXTIME(o.create_time) '下单时间',FROM_UNIXTIME(o.create_time,'%Y-%m-%d') '下单日期',
+		FROM_UNIXTIME(gs.create_time) '审核时间',FROM_UNIXTIME(gs.create_time,'%Y-%m-%d') '审核日期',
+		(SELECT MAX(FROM_UNIXTIME(gslog.op_time)) FROM gt_send_orders_log gslog WHERE gslog.send_order_id=gs.send_order_id AND op_type IN(15,37,22)) '出库时间',
+		CASE gs.status WHEN 1 THEN '已确认' WHEN 2 THEN '备货中' WHEN 3 THEN '已发货' WHEN 4 THEN (CASE gs.sub_status WHEN 9 THEN '拒收' WHEN 11 THEN '拒收' ELSE '已完成' END)
+		WHEN 5 THEN '已取消' ELSE '已删除' END '子订单状态',
+		CASE gs.sub_status WHEN 0 THEN '待分拣' WHEN 21 THEN '待分拣' WHEN 1 THEN '待打包' WHEN 3 THEN '待出库' WHEN 20 THEN '异常订单' 
+		WHEN 7 THEN '待签收' WHEN 9 THEN '待回收货物' WHEN 11 THEN '回收货物完毕' WHEN 10 THEN '完成' ELSE '' END '子订单子状态',
+		CASE gs.type WHEN 1 THEN '销售' WHEN 2 THEN '换货' END '订单类型',
+		CASE gsi.channel WHEN 1 THEN '自营' WHEN 2 THEN '实库代销' WHEN 3 THEN '订购' WHEN 4 THEN '虚库代销' WHEN 5 THEN '包销' WHEN 6 THEN '海外代购' ELSE '' END '商品渠道', 
+		(SELECT MAX(provider_name) FROM `gt_stock_order` gstock INNER JOIN `gt_stock_order_detail` gstocks ON gstock.stock_order_id=gstocks.stock_order_id 
+		INNER JOIN `gt_provider` gpv ON gpv.provider_id=gstock.provider_id
+		WHERE gstocks.product_spec_id=gsi.product_spec_id) '供应商代码',
+		(SELECT MAX(provider_full_name) FROM `gt_stock_order` gstock INNER JOIN `gt_stock_order_detail` gstocks ON gstock.stock_order_id=gstocks.stock_order_id 
+		INNER JOIN `gt_provider` gpv ON gpv.provider_id=gstock.provider_id
+		WHERE gstocks.product_spec_id=gsi.product_spec_id) '供应商名称',
+		(CASE o.source WHEN 1 THEN 'PC' WHEN 2 THEN 'M端' WHEN 3 THEN 'IOS' WHEN 4 THEN 'Android' WHEN 5 
+		THEN 'IOS特卖' WHEN 6 THEN 'Android特卖' WHEN 7 THEN 'IOS付费版' ELSE '' END) '订单下单来源',
+		CASE o.pay_type_id WHEN  1 THEN '货到付款' WHEN 2 THEN '在线支付' WHEN 3 THEN '分期付款' WHEN 4 THEN '线下支付' ELSE '余额货返券支付' END '支付类型',
+		gps.payment_name AS '支付方式',
+		CONCAT(CASE o.pay_type_id WHEN  1 THEN '货到付款' WHEN 2 THEN '在线支付' WHEN 3 THEN '分期付款' WHEN 4 THEN '线下支付' ELSE '余额货返券支付' END,gps.payment_name) '支付类型和方式',
+		#CASE WHEN o.pay_type_id=1 AND o.offline_payment_name='pos机' THEN gd.need_pay ELSE 0 END 'pos支付',
+		#CASE WHEN o.pay_type_id=1 AND o.offline_payment_name='现金' THEN gd.need_pay ELSE 0 END '现金支付',
+		#CASE o.pay_type_id WHEN 2 THEN gd.need_pay WHEN 3 THEN gd.need_pay ELSE 0 END '在线支付',
+		#CASE o.pay_type_id WHEN 4 THEN gd.need_pay ELSE 0 END '线下支付',
+		gs.consignee '收货人',gadd1.local_name '省',gadd2.local_name '市',gadd3.local_name '县',gs.address '收货地址',
+		gs.advis '配送人',gex.express_name '第三方物流',gs.express_sn '运单号',
+		CASE gs.invoice_type WHEN '3' THEN '不开发票' WHEN '1' THEN '个人' WHEN '2' THEN '公司' ELSE gs.invoice_type END '开票类型',
+		gs.invoice_title '开票抬头',gs.invoice_item '开票明细',gs.invoice_number '发票编号',
+		ggb.brand_name '品牌',
+		CASE IFNULL(ggc1.category_name,'') WHEN '' THEN IFNULL(ggc2.category_name,ggc3.category_name) ELSE ggc1.category_name END '一级品类',
+		CASE IFNULL(ggc1.category_name,'') WHEN '' THEN ggc3.category_name ELSE ggc2.category_name END '二级品类',ggc3.category_name '三级品类',
+		gsi.`sku` 'SKU',gpd.`product_name` '商品名称',gsi.`delivery_quantity` '数量',gsi.`delivery_money` '单价',
+		gpd.url_id 'URL_ID',0 '成本价',0 '含税成本价',IFNULL(gd.`need_pay`,0)+IFNULL(gd.`balance`,0) '商品总应收金额',
+		IFNULL(gd.`activity_money`,0)+IFNULL(gd.`discount_card_money`,0)+IFNULL(gd.`gift_money`,0)+IFNULL(gd.`real_discount_money`,0)+IFNULL(gd.`point_money`,0) '商品总优惠金额',
+		gd.`need_pay` '在线支付金额',gd.`balance` '余额支付金额',
+		gd.activity_id '活动id',ga.name AS '活动名称',gd.`activity_money` '活动减免的金额',
+		gd.`discount_card_money` '满减卡支付金额',gd.`discount_card_num` '满减卡号',gd.`gift_money` '礼品卡支付金额',gd.`gift_card_num` '礼品卡号',
+		gd.`real_discount_money` '打折支付金额',gd.`real_discount_card_num` '打折卡号',gd.`point_money` '返券支付金额',gd.`point_num` '返券卡号',
+		CASE IFNULL(gd.discount_card_num,'0') WHEN '0' THEN fqt.task_id ELSE fmt.task_id END AS '生成券任务号',
+		CASE (CASE IFNULL(gd.discount_card_num,'0') WHEN '0' THEN fqt.type ELSE fmt.type END) WHEN 1 THEN '充值卡' WHEN 2 THEN '满减卡' WHEN 3 THEN '打折卡' ELSE '' END  AS '生成券类型',
+		CASE IFNULL(gd.discount_card_num,'0') WHEN '0' THEN CAST(fqt.money AS CHAR) ELSE 
+		CONCAT('满',CAST(fmt.use_condition AS CHAR),'减',CAST(fmt.money AS CHAR)) END AS '面额',
+		gs.`order_memo` '订单备注',
+		gcr.reason '取消主原因',gs.cancel_reason '取消原因',
+		CASE ad.ads_source 
+		WHEN 2 THEN '亿起发' 
+		WHEN 3 THEN '唯一' 
+		WHEN 4 THEN '多麦广告' 
+		WHEN 5 THEN '成果网' 
+		WHEN 6 THEN '领克特' ELSE '' END  AS '订单第三方来源','' AS '是否退货',0 '退货数量',0 '换货数量',0 '退货金额','' AS '退货原因',
+		gpst.storage_name AS '发货仓库',
+		(SELECT MAX(FROM_UNIXTIME(gsl.op_time)) FROM gt_send_orders_log gsl WHERE gsl.`send_order_id`=gs.`send_order_id` AND gsl.`op_type`='19') '签收日期'
+		FROM gt_send_orders gs
+		INNER JOIN gt_orders o  ON o.`order_id`=gs.`order_id`
+		INNER JOIN gt_send_orders_item gsi ON gsi.`send_order_id`=gs.`send_order_id`
+		INNER JOIN gt_orders_item_detail gd ON gd.`order_id`=o.`order_id` AND gd.`product_spec_id`=gsi.`product_spec_id`
+		#LEFT JOIN gt_send_orders_log gsl ON gsl.`send_order_id`=gs.`send_order_id` AND gsl.`op_type`='19'
+		LEFT JOIN gt_products gpd ON gpd.`product_id`=gsi.`product_id`
+		LEFT JOIN `gt_member_profile` gm ON gm.`member_id`=o.`member_id`
+		LEFT JOIN gt_payment_log gp ON gp.`order_sn`=o.`order_sn` AND gp.`member_id`=o.`member_id` AND gp.`status`=1
+		LEFT JOIN gt_payments gps ON gps.pay_type_id=o.pay_type_id AND gp.payment_id=gps.payment_id
+		LEFT JOIN `gt_express` gex ON gex.express_id=gs.express_id
+		LEFT JOIN gt_goods ggd ON ggd.goods_id=gpd.goods_id
+		LEFT JOIN `gt_goods_brand` ggb ON ggb.brand_id=ggd.brand_id
+		LEFT JOIN `gt_goods_category` ggc3 ON ggc3.category_id=ggd.category_id
+		LEFT JOIN `gt_goods_category` ggc2 ON ggc2.category_id=ggc3.category_pid
+		LEFT JOIN `gt_goods_category` ggc1 ON ggc1.category_id=ggc2.category_pid
+		LEFT JOIN gt_cancel_reason gcr ON gcr.id=gs.cancel_reason_id
+		LEFT JOIN `gt_region` gadd1 ON gadd1.region_id=gs.shipping_area_id
+		LEFT JOIN `gt_region` gadd2 ON gadd2.region_id=gs.shipping_city_id AND gadd1.region_id=gadd2.region_pid
+		LEFT JOIN `gt_region` gadd3 ON gadd3.region_id=gs.shipping_district_id AND gadd2.region_id=gadd3.region_pid
+		LEFT JOIN gt_activity_news ga ON ga.id=gd.activity_id
+		LEFT JOIN gt_orders_ads ad ON ad.order_id=gs.order_id
+		LEFT JOIN gt_point_card fq ON fq.card_num=gd.point_num
+		LEFT JOIN gt_coupon_card_task fqt ON fqt.task_id=fq.task_id
+		LEFT JOIN gt_discount_card fm ON fm.card_num=gd.discount_card_num
+		LEFT JOIN gt_coupon_card_task fmt ON fmt.task_id=fm.task_id
+		LEFT JOIN gt_provider_storage gpst ON gpst.storage_id=gs.warehouse_id
+		WHERE FROM_UNIXTIME(gs.`create_time`)>=#{startTime} AND FROM_UNIXTIME(gs.`create_time`)<#{endTime} 
+		ORDER BY FROM_UNIXTIME(gs.`create_time`,'%Y-%m-%d'),gs.member_id,gs.create_time ASC
+		limit 1;
+		
+		]]>
+		
+				
+	</select>
+	
+</mapper>
+

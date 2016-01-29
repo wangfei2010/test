@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+"http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+
+<!-- 不使用namespace的话sql搜索定位会比较方便 -->
+<mapper namespace="QrtzTriggers">
+
+	<resultMap id="RM.QrtzTriggers" type="com.zp.zpquartz.model.QrtzTriggers">
+        <result property="triggerId" column="trigger_id"/>
+        <result property="triggerName" column="trigger_name"/>
+        <result property="triggerGroup" column="trigger_group"/>
+        <result property="jobId" column="job_id"/>
+        <result property="nextFireTime" column="next_fire_time"/>
+        <result property="triggerState" column="trigger_state"/>
+        <result property="triggerCron" column="trigger_cron"/>
+	</resultMap>
+	
+	<!-- 用于select查询公用抽取的列 -->
+	<sql id="QrtzTriggers.columns">
+	    <![CDATA[
+		trigger_id,trigger_name,trigger_group,job_id,next_fire_time,trigger_state,trigger_cron
+	    ]]>
+	</sql>
+
+	<!-- useGeneratedKeys="true" keyProperty="xxx" for sqlserver and mysql -->
+	<insert id="QrtzTriggers.insert" useGeneratedKeys="true" keyProperty="triggerId">
+    <![CDATA[
+        INSERT INTO qrtz_triggers (
+        	trigger_id ,
+        	trigger_name ,
+        	trigger_group ,
+        	job_id ,
+        	next_fire_time ,
+        	trigger_state ,
+        	trigger_cron 
+        ) VALUES (
+        	#{triggerId} ,
+        	#{triggerName} ,
+        	#{triggerGroup} ,
+        	#{jobId} ,
+        	#{nextFireTime} ,
+        	#{triggerState} ,
+        	#{triggerCron} 
+        )
+    ]]>
+		<!--	
+			oracle: order="BEFORE" SELECT sequenceName.nextval AS ID FROM DUAL 
+			DB2: order="BEFORE"" values nextval for sequenceName
+		<selectKey resultType="java.lang.Long" order="BEFORE" keyProperty="userId">
+			SELECT sequenceName.nextval AS ID FROM DUAL 
+        </selectKey>
+		-->
+	</insert>
+    
+	<update id="QrtzTriggers.update" >
+    <![CDATA[
+        UPDATE qrtz_triggers SET
+	        trigger_name = #{triggerName} ,
+	        trigger_group = #{triggerGroup} ,
+	        job_id = #{jobId} ,
+	        next_fire_time = #{nextFireTime} ,
+	        trigger_state = #{triggerState} ,
+	        trigger_cron = #{triggerCron} 
+        WHERE 
+	        trigger_id = #{triggerId} 
+    ]]>
+	</update>
+
+    <delete id="QrtzTriggers.delete">
+    <![CDATA[
+        DELETE FROM qrtz_triggers WHERE
+        trigger_id = #{id} 
+    ]]>
+    </delete>
+    
+    <select id="QrtzTriggers.getById" resultMap="RM.QrtzTriggers">
+		SELECT <include refid="QrtzTriggers.columns" />
+	    <![CDATA[
+		    FROM qrtz_triggers 
+	        WHERE 
+		        trigger_id = #{id} 
+	    ]]>
+	</select>
+	
+	    <select id="QrtzTriggers.findAllData" resultMap="RM.QrtzTriggers">
+		SELECT <include refid="QrtzTriggers.columns" />
+	    <![CDATA[
+		    FROM qrtz_triggers  
+	    ]]>
+	</select>
+	
+	<sql id="QrtzTriggers.findPage.where">
+		<!-- ognl访问静态方法的表达式 为@class@method(args),以下为调用rapid中的Ognl.isNotEmpty()方法,还有其它方法如isNotBlank()可以使用，具体请查看Ognl类 -->
+		<where>	      				
+	       <if test="@Ognl@isNotEmpty(triggerId)">
+				AND trigger_id = #{triggerId}
+			</if>
+	       <if test="@Ognl@isNotEmpty(triggerName)">
+				AND trigger_name = #{triggerName}
+			</if>
+	       <if test="@Ognl@isNotEmpty(triggerGroup)">
+				AND trigger_group = #{triggerGroup}
+			</if>
+	       <if test="@Ognl@isNotEmpty(jobId)">
+				AND job_id = #{jobId}
+			</if>
+	       <if test="@Ognl@isNotEmpty(nextFireTime)">
+				AND next_fire_time = #{nextFireTime}
+			</if>
+	       <if test="@Ognl@isNotEmpty(triggerState)">
+				AND trigger_state = #{triggerState}
+			</if>
+	       <if test="@Ognl@isNotEmpty(triggerCron)">
+				AND trigger_cron = #{triggerCron}
+			</if>
+		</where>
+	</sql>
+		
+    <select id="QrtzTriggers.findPage.count" resultType="long">
+        SELECT count(*) FROM qrtz_triggers 
+		<include refid="QrtzTriggers.findPage.where"/>    
+    </select>
+    
+    <!--
+    	分页查询已经使用Dialect进行分页,也可以不使用Dialect直接编写分页
+    	因为分页查询将传 offset,pageSize,lastRows 三个参数,不同的数据库可以根于此三个参数属性应用不同的分页实现
+    -->
+    <select id="QrtzTriggers.findPage" resultMap="RM.QrtzTriggers">
+    	SELECT <include refid="QrtzTriggers.columns" />
+	    FROM qrtz_triggers 
+		<include refid="QrtzTriggers.findPage.where"/>
+		
+		<if test="@Ognl@isNotEmpty(sortColumns)">
+			ORDER BY ${sortColumns}
+		</if>
+    </select>
+    
+<!-- 	<select id="QrtzTriggers.getNextFireTime" resultType="long">
+		SELECT 
+		  next_fire_time
+		FROM
+		  qrtz_triggers 
+		WHERE trigger_name = #{triggerName} 
+	</select> -->
+	<select id="QrtzTriggers.getFireTimeByJobName" resultType="int" parameterType="String">
+    	SELECT t.next_fire_time FROM qrtz_triggers t 
+    	JOIN qrtz_job_details j 
+    	ON t.job_id=j.job_id WHERE j.job_name = #{_paramter}
+    </select>
+    
+     <update id="QrtzTriggers.updateFireTimeByJobName">
+    	UPDATE qrtz_triggers SET next_fire_time = UNIX_TIMESTAMP()
+        WHERE job_id=(SELECT job_id FROM qrtz_job_details WHERE job_name = #{_paramter})
+    </update>
+
+     <update id="QrtzTriggers.updateFireTimeByJobNameAndTimestamp">
+     	UPDATE qrtz_triggers SET next_fire_time = #{timestamp}
+        WHERE job_id=(SELECT job_id FROM qrtz_job_details WHERE job_name = #{jobName}) 
+    </update>
+	    
+    <select id="QrtzTriggers.queryList" resultMap="RM.QrtzTriggers">
+        select *
+        from qrtz_triggers
+        WHERE job_id=(SELECT job_id FROM qrtz_job_details WHERE job_name = #{_paramter})
+    </select>
+    
+	<!-- <update id="QrtzTriggers.updateNextFireTime" >
+    <![CDATA[
+        UPDATE  qrtz_triggers  
+        SET
+	        next_fire_time =UNIX_TIMESTAMP()
+        WHERE 
+	       trigger_name = #{triggerName} 
+    ]]>
+	</update> -->
+	<select id="QrtzTriggers.getJobNames" resultType="java.lang.String">
+		SELECT GROUP_CONCAT(`trigger_name`) FROM `qrtz_triggers`;
+	</select>
+	
+</mapper>
+

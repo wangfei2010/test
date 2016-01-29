@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//ibatis.apache.org//DTD Mapper 3.0//EN"
+"http://ibatis.apache.org/dtd/ibatis-3-mapper.dtd">
+
+
+<!-- 不使用namespace的话sql搜索定位会比较方便 -->
+<mapper namespace="QrtzLogError">
+
+	<resultMap id="RM.QrtzLogError" type="com.zp.zpquartz.model.QrtzLogError">
+        <result property="id" column="id"/>
+        <result property="jobname" column="jobname"/>
+        <result property="error" column="error"/>
+	</resultMap>
+	
+	<!-- 用于select查询公用抽取的列 -->
+	<sql id="QrtzLogError.columns">
+	    <![CDATA[
+		id,jobname,error
+	    ]]>
+	</sql>
+
+	<!-- useGeneratedKeys="true" keyProperty="xxx" for sqlserver and mysql -->
+	<insert id="QrtzLogError.insert" useGeneratedKeys="true" keyProperty="id">
+    <![CDATA[
+        INSERT INTO qrtz_log_error (
+        	id ,
+        	jobname ,
+        	error 
+        ) VALUES (
+        	#{id} ,
+        	#{jobname} ,
+        	#{error} 
+        )
+    ]]>
+		<!--	
+			oracle: order="BEFORE" SELECT sequenceName.nextval AS ID FROM DUAL 
+			DB2: order="BEFORE"" values nextval for sequenceName
+		<selectKey resultType="java.lang.Long" order="BEFORE" keyProperty="userId">
+			SELECT sequenceName.nextval AS ID FROM DUAL 
+        </selectKey>
+		-->
+	</insert>
+    
+	<update id="QrtzLogError.update" >
+    <![CDATA[
+        UPDATE qrtz_log_error SET
+	        jobname = #{jobname} ,
+	        error = #{error} 
+        WHERE 
+	        id = #{id} 
+    ]]>
+	</update>
+
+    <delete id="QrtzLogError.delete">
+    <![CDATA[
+        DELETE FROM qrtz_log_error WHERE
+        id = #{id} 
+    ]]>
+    </delete>
+    
+    <select id="QrtzLogError.getById" resultMap="RM.QrtzLogError">
+		SELECT <include refid="QrtzLogError.columns" />
+	    <![CDATA[
+		    FROM qrtz_log_error 
+	        WHERE 
+		        id = #{id} 
+	    ]]>
+	</select>
+	
+	<sql id="QrtzLogError.findPage.where">
+		<!-- ognl访问静态方法的表达式 为@class@method(args),以下为调用rapid中的Ognl.isNotEmpty()方法,还有其它方法如isNotBlank()可以使用，具体请查看Ognl类 -->
+		<where>	      				
+	       <if test="@Ognl@isNotEmpty(id)">
+				AND id = #{id}
+			</if>
+	       <if test="@Ognl@isNotEmpty(jobname)">
+				AND jobname = #{jobname}
+			</if>
+	       <if test="@Ognl@isNotEmpty(error)">
+				AND error = #{error}
+			</if>
+		</where>
+	</sql>
+		
+    <select id="QrtzLogError.findPage.count" resultType="long">
+        SELECT count(*) FROM qrtz_log_error 
+		<include refid="QrtzLogError.findPage.where"/>    
+    </select>
+    
+    <!--
+    	分页查询已经使用Dialect进行分页,也可以不使用Dialect直接编写分页
+    	因为分页查询将传 offset,pageSize,lastRows 三个参数,不同的数据库可以根于此三个参数属性应用不同的分页实现
+    -->
+    <select id="QrtzLogError.findPage" resultMap="RM.QrtzLogError">
+    	SELECT <include refid="QrtzLogError.columns" />
+	    FROM qrtz_log_error 
+		<include refid="QrtzLogError.findPage.where"/>
+		
+		<if test="@Ognl@isNotEmpty(sortColumns)">
+			ORDER BY ${sortColumns}
+		</if>
+    </select>
+
+
+	<insert id="QrtzLogError.insertError" useGeneratedKeys="true" keyProperty="id">
+    <![CDATA[
+        INSERT INTO qrtz_log_error (
+        	jobname ,
+        	error 
+        ) VALUES (
+        	#{jobname} ,
+        	#{error} 
+        )
+    ]]>
+	</insert>
+	
+</mapper>
+
